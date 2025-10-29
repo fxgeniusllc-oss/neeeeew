@@ -1,0 +1,31 @@
+[package]
+name = "dual-apex-engine"
+version = "1.0.0"
+edition = "2021"
+authors = ["FX Genius LLC <dev@fxgeniusllc.com>"]
+description = "Ultra-fast DeFi trading engine with ML inference"
+
+[lib]
+name = "dual_apex_engine"
+path = "rust/src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py39"] }
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+ethers = "2.0"
+rust_decimal = "1.33"
+chrono = "0.4"
+thiserror = "1.0"
+anyhow = "1.0"
+log = "0.4"
+env_logger = "0.11"
+rand = "0.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
