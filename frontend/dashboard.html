@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dual Apex Core System - Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            background: rgba(0, 255, 0, 0.3);
+            border: 1px solid rgba(0, 255, 0, 0.6);
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .metric-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .metric-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .metric-change {
+            font-size: 0.85em;
+        }
+        
+        .positive {
+            color: #4ade80;
+        }
+        
+        .negative {
+            color: #f87171;
+        }
+        
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .panel h2 {
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .signals-list, .trades-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .signal-item, .trade-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .signal-item.high-confidence {
+            border-left-color: #4ade80;
+        }
+        
+        .trade-item.success {
+            border-left-color: #4ade80;
+        }
+        
+        .trade-item.failed {
+            border-left-color: #f87171;
+        }
+        
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .item-details {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+        
+        .strategy-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            font-size: 0.75em;
+            margin-right: 5px;
+        }
+        
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Dual Apex Core System</h1>
+            <div class="status-badge">● System Online</div>
+        </header>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Total Profit</div>
+                <div class="metric-value" id="totalProfit">$0.00</div>
+                <div class="metric-change positive" id="profitChange">+$0.00 (24h)</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Trade Count</div>
+                <div class="metric-value" id="tradeCount">0</div>
+                <div class="metric-change" id="tradeCountChange">0 today</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Win Rate</div>
+                <div class="metric-value" id="winRate">0%</div>
+                <div class="metric-change" id="winRateChange">Target: 85%</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">System Uptime</div>
+                <div class="metric-value" id="uptime">0h</div>
+                <div class="metric-change" id="uptimeDetails">Rust engine active</div>
+            </div>
+        </div>
+        
+        <div class="content-grid">
+            <div class="panel">
+                <h2>📊 Profit Chart</h2>
+                <div class="chart-container">
+                    <canvas id="profitChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2>🎯 Active Signals</h2>
+                <div class="signals-list" id="signalsList">
+                    <div style="text-align: center; opacity: 0.5; padding: 20px;">
+                        Waiting for signals...
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>💼 Recent Trades</h2>
+            <div class="trades-list" id="tradesList">
+                <div style="text-align: center; opacity: 0.5; padding: 20px;">
+                    No trades yet...
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8889';
+        const WS_URL = 'ws://localhost:8890';
+        
+        let ws;
+        let profitChart;
+        let profitData = [];
+        
+        // Initialize profit chart
+        function initChart() {
+            const ctx = document.getElementById('profitChart').getContext('2d');
+            profitChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Cumulative Profit ($)',
+                        data: [],
+                        borderColor: '#4ade80',
+                        backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#fff' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#fff' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: '#fff' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update dashboard metrics
+        async function updateMetrics() {
+            try {
+                const response = await fetch(`${API_URL}/dashboard`);
+                const data = await response.json();
+                
+                document.getElementById('totalProfit').textContent = 
+                    `$${data.overview.total_profit.toFixed(2)}`;
+                document.getElementById('profitChange').textContent = 
+                    `$${data.overview.profit_24h.toFixed(2)} (24h)`;
+                document.getElementById('tradeCount').textContent = 
+                    data.overview.trade_count;
+                document.getElementById('winRate').textContent = 
+                    `${(data.overview.win_rate * 100).toFixed(1)}%`;
+                document.getElementById('uptime').textContent = 
+                    `${data.overview.uptime_hours}h`;
+                
+                // Update signals
+                updateSignals(data.recent_signals);
+                
+                // Update trades
+                updateTrades(data.recent_trades);
+                
+            } catch (error) {
+                console.error('Error updating metrics:', error);
+            }
+        }
+        
+        // Update signals list
+        function updateSignals(signals) {
+            const container = document.getElementById('signalsList');
+            
+            if (!signals || signals.length === 0) {
+                container.innerHTML = '<div style="text-align: center; opacity: 0.5; padding: 20px;">No active signals</div>';
+                return;
+            }
+            
+            container.innerHTML = signals.map(signal => `
+                <div class="signal-item ${signal.confidence > 0.85 ? 'high-confidence' : ''}">
+                    <div class="item-header">
+                        <span>${signal.pair}</span>
+                        <span class="positive">$${signal.expected_profit.toFixed(0)}</span>
+                    </div>
+                    <div class="item-details">
+                        <span class="strategy-tag">${signal.strategy}</span>
+                        Confidence: ${(signal.confidence * 100).toFixed(1)}%
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Update trades list
+        function updateTrades(trades) {
+            const container = document.getElementById('tradesList');
+            
+            if (!trades || trades.length === 0) {
+                container.innerHTML = '<div style="text-align: center; opacity: 0.5; padding: 20px;">No trades yet</div>';
+                return;
+            }
+            
+            container.innerHTML = trades.map(trade => `
+                <div class="trade-item ${trade.success ? 'success' : 'failed'}">
+                    <div class="item-header">
+                        <span>${trade.pair || trade.strategy}</span>
+                        <span class="${trade.profit > 0 ? 'positive' : 'negative'}">
+                            ${trade.profit > 0 ? '+' : ''}$${trade.profit.toFixed(2)}
+                        </span>
+                    </div>
+                    <div class="item-details">
+                        <span class="strategy-tag">${trade.strategy}</span>
+                        ${trade.execution_time_ms}ms | Gas: ${trade.gas_used}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Connect to WebSocket for real-time updates
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+            };
+            
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                
+                if (message.type === 'trade') {
+                    // Update profit chart
+                    const now = new Date().toLocaleTimeString();
+                    profitData.push(message.data.profit);
+                    
+                    if (profitChart.data.labels.length > 20) {
+                        profitChart.data.labels.shift();
+                        profitChart.data.datasets[0].data.shift();
+                    }
+                    
+                    profitChart.data.labels.push(now);
+                    const cumulative = profitData.reduce((a, b) => a + b, 0);
+                    profitChart.data.datasets[0].data.push(cumulative);
+                    profitChart.update();
+                    
+                    // Refresh metrics
+                    updateMetrics();
+                } else if (message.type === 'signal') {
+                    // Refresh signals
+                    updateMetrics();
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected, reconnecting...');
+                setTimeout(connectWebSocket, 5000);
+            };
+        }
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            updateMetrics();
+            connectWebSocket();
+            
+            // Update metrics every 10 seconds
+            setInterval(updateMetrics, 10000);
+        });
+    </script>
+</body>
+</html>
