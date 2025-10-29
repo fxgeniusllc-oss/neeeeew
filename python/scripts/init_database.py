@@ -18,8 +18,14 @@ try:
     POSTGRES_AVAILABLE = True
 except ImportError:
     logger.warning("psycopg2 not available. Using SQLite fallback.")
-    import sqlite3
     POSTGRES_AVAILABLE = False
+
+try:
+    import sqlite3
+    SQLITE_AVAILABLE = True
+except ImportError:
+    SQLITE_AVAILABLE = False
+    logger.warning("sqlite3 not available")
 
 
 def init_postgres_db():
@@ -118,6 +124,10 @@ def init_postgres_db():
 
 def init_sqlite_db():
     """Initialize SQLite database as fallback"""
+    if not SQLITE_AVAILABLE:
+        logger.error("SQLite not available")
+        return False
+    
     db_path = 'data/dual_apex.db'
     os.makedirs('data', exist_ok=True)
     

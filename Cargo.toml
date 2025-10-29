@@ -7,6 +7,7 @@ description = "Ultra-fast DeFi trading engine with ML inference"
 
 [lib]
 name = "dual_apex_engine"
+path = "rust/src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
@@ -22,6 +23,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 log = "0.4"
 env_logger = "0.11"
+rand = "0.8"
 
 [profile.release]
 opt-level = 3
