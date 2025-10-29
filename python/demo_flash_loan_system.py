@@ -5,6 +5,7 @@ Demonstrates the multi-provider flash loan system
 """
 
 import asyncio
+import os
 from decimal import Decimal
 from web3 import Web3
 from eth_account import Account
@@ -23,11 +24,19 @@ async def demo_flash_loan_system():
     print("🚀 Flash Loan Multi-Provider System Demo")
     print("=" * 60)
     
-    # Setup Web3 (using a public RPC for demo)
-    w3 = Web3(Web3.HTTPProvider('https://polygon-rpc.com'))
+    # Setup Web3 (using environment variable or public RPC for demo)
+    rpc_url = os.getenv('POLYGON_RPC', 'https://polygon-rpc.com')
+    w3 = Web3(Web3.HTTPProvider(rpc_url))
     
-    # Create a demo account (DO NOT use in production without secure key management)
-    private_key = "0x" + "0" * 64  # Demo key - replace with actual key
+    # Create a demo account - NEVER use hardcoded keys in production!
+    # For demo purposes only - use secure key management in production
+    private_key = os.getenv('PRIVATE_KEY')
+    if not private_key or private_key == '0xYOUR_PRIVATE_KEY':
+        # Generate a random key for demo (won't have funds, just for structure demo)
+        import secrets
+        private_key = "0x" + secrets.token_hex(32)
+        print("⚠️  Using randomly generated key for demo (no real funds)")
+    
     account = Account.from_key(private_key)
     
     print(f"\n📍 Connected to Polygon network: {w3.is_connected()}")
