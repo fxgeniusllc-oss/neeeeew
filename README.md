@@ -185,11 +185,22 @@ The **Dual Apex Core System** is a sophisticated, production-grade DeFi trading 
 
 #### 8. **Production System** (`complete_production_system.py`)
    - Real Aave V3 liquidation executor
+   - **Multi-provider flash loan manager** (Curve/Aave/Balancer)
    - Cross-chain bridge integration
    - Telegram real-time alerts
    - Mainnet deployment controller
    - REST API gateway
    - Telegram bot command suite
+
+#### 9. **Flash Loan Manager** (`python/flash_loan_manager.py`)
+   - Abstract provider interface for extensibility
+   - Aave V3 Pool integration (0.09% fee)
+   - Curve Pool integration (0.04% fee)
+   - Balancer Vault v3 integration (0% fee)
+   - Dynamic provider selection algorithm
+   - Simultaneous multi-provider support (1 loan per provider)
+   - Real-time liquidity and fee checking
+   - Automatic failover and retry logic
 
 #### 3. **Enterprise Features** (`advanced_monitoring_scaling.py`)
    - Advanced performance analytics
@@ -271,6 +282,8 @@ Exploits liquidatable positions in lending protocols using machine learning pred
 **Key Features:**
 - Real smart contract integration with Aave V3
 - ML-powered health factor prediction
+- **Multi-provider flash loan system** (Curve/Aave/Balancer)
+- **Dynamic provider selection** by fee and liquidity
 - Gas-optimized flash loan execution
 - Multi-collateral support (WETH, WBTC, USDC, DAI, MATIC)
 
@@ -342,20 +355,28 @@ Delta-neutral options strategies exploiting volatility.
 
 ### 6. Flash Loan Arbitrage ⚡
 
-Zero-capital arbitrage using uncollateralized loans.
+Zero-capital arbitrage using uncollateralized loans with **multi-provider support**.
 
 **How It Works:**
 1. Identifies price discrepancies across DEXs
-2. Flash borrows required capital
-3. Buys on cheap DEX
-4. Sells on expensive DEX
-5. Repays loan + fee
-6. Keeps profit
+2. Selects optimal flash loan provider based on fees and liquidity
+3. Flash borrows required capital from best provider
+4. Buys on cheap DEX
+5. Sells on expensive DEX
+6. Repays loan + fee
+7. Keeps profit
 
-**Loan Sources:**
-- Aave V3 (0.09% fee)
-- dYdX (no fee)
-- Uniswap V3 (flash swaps)
+**Multi-Provider System:**
+- **Balancer Vault v3** (0% fee) - Zero cost, ideal for high-volume
+- **Curve Pool** (0.04% fee) - Low cost, good liquidity
+- **Aave V3 Pool** (0.09% fee) - High liquidity, reliable
+
+**Key Features:**
+- Dynamic provider selection by fee and liquidity
+- Support for simultaneous flash loans (1 per provider)
+- Automatic fallback to alternative providers
+- Real-time fee comparison and optimization
+- Configurable maximum fee thresholds
 
 ## 🛠️ Technology Stack
 
@@ -578,7 +599,11 @@ BSC_RPC=https://bsc-dataseed1.binance.org/
 
 # Private Keys (NEVER commit these)
 PRIVATE_KEY=0xYOUR_PRIVATE_KEY
-FLASHLOAN_CONTRACT=0xYOUR_FLASHLOAN_CONTRACT_ADDRESS
+
+# Flash Loan Provider Contracts
+AAVE_V3_POOL=0x794a61458eD90ABD2294aB7e655BC0fD30C4D0c8
+CURVE_POOL=0xYOUR_CURVE_POOL_ADDRESS  # Optional
+BALANCER_V3_VAULT=0xBA12222222228d8Ba445958a75a0704d566BF2C8
 
 # API Keys
 POLYGONSCAN_API_KEY=YOUR_POLYGONSCAN_KEY
@@ -631,6 +656,48 @@ capital_allocation = {
 }
 ```
 
+### Flash Loan Configuration
+
+Configure flash loan providers for optimal execution:
+
+```python
+# Flash Loan Provider Configuration
+flashloan_config = {
+    # Aave V3 Pool (Polygon Mainnet)
+    'aave_v3_pool': '0x794a61458eD90ABD2294aB7e655BC0fD30C4D0c8',
+    
+    # Curve Pool (optional - configure for specific Curve pools)
+    'curve_pool': '0xYOUR_CURVE_POOL_ADDRESS',
+    
+    # Balancer Vault v3 (Polygon Mainnet)
+    'balancer_v3_vault': '0xBA12222222228d8Ba445958a75a0704d566BF2C8',
+}
+
+# Flash Loan Execution Parameters
+flash_loan_params = {
+    'max_fee_percentage': 0.01,      # Maximum 1% fee accepted
+    'prefer_zero_fee': True,          # Prefer Balancer when available
+    'fallback_enabled': True,         # Auto-fallback to alternatives
+    'simultaneous_loans': True,       # Enable multiple loans (1 per provider)
+}
+```
+
+**Provider Selection Logic:**
+1. Check all providers for liquidity availability
+2. Filter by maximum fee threshold
+3. Sort by effective cost (fee + gas estimation)
+4. Select provider with lowest total cost
+5. If provider has active loan, select next best option
+6. Support up to 3 simultaneous loans (one per provider)
+
+**Provider Comparison:**
+
+| Provider | Fee | Liquidity | Gas Cost | Best For |
+|----------|-----|-----------|----------|----------|
+| **Balancer V3** | 0% | High | Medium | Large trades |
+| **Curve** | 0.04% | Very High | Low | Stablecoin trades |
+| **Aave V3** | 0.09% | Highest | High | Guaranteed execution |
+
 ### Strategy Configuration
 
 Each strategy can be individually configured:
@@ -641,7 +708,8 @@ liquidation_config = {
     'min_profit': 5000,              # Minimum $5k profit
     'min_confidence': 0.80,          # 80%+ ML confidence
     'max_gas_price': 100,            # 100 gwei max
-    'protocols': ['aave_v3', 'compound']
+    'protocols': ['aave_v3', 'compound'],
+    'flash_loan_provider': 'auto'   # Auto-select best provider
 }
 
 # Cross-Chain Arbitrage
