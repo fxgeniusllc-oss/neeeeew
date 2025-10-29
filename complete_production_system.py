@@ -22,6 +22,7 @@ import json
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 import os
+import sys
 from datetime import datetime, timedelta
 import logging
 from web3 import Web3
@@ -33,26 +34,37 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import redis
 from functools import wraps
 
+# Add python directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'python'))
+from flash_loan_manager import FlashLoanManager, FlashLoanRequest, FlashLoanProvider
+
 # ═══════════════════════════════════════════════════════════════════════════
 # STEP 1: REAL AAVE V3 LIQUIDATION CONTRACT EXECUTOR
 # ═══════════════════════════════════════════════════════════════════════════
 
 class RealAaveV3Liquidator:
-    """Execute REAL liquidations on Aave V3 via smart contracts"""
+    """Execute REAL liquidations on Aave V3 via smart contracts with multi-provider flash loans"""
     
-    def __init__(self, web3: Web3, private_key: str, flashloan_contract: str):
+    def __init__(self, web3: Web3, private_key: str, flashloan_config: Dict):
         self.logger = logging.getLogger('AAVE_LIQUIDATOR')
         self.web3 = web3
         self.account = Account.from_key(private_key)
-        self.flashloan_contract = flashloan_contract
         
         # Aave V3 contracts (Polygon mainnet)
         self.aave_pool = "0x794a61eF1fef17B6C0e0A0E14E74c8f7E1C7E80"
         self.aave_data_provider = "0x7551B5175b3B3098b4663688C0ABb2fC35162676"
         
+        # Initialize Flash Loan Manager with multi-provider support
+        self.flash_loan_manager = FlashLoanManager(
+            web3=web3,
+            account=self.account,
+            config=flashloan_config
+        )
+        
         # Contract ABIs
         self.pool_abi = self._get_pool_abi()
-        self.flashloan_abi = self._get_flashloan_abi()
+        
+        self.logger.info("Initialized liquidator with multi-provider flash loan support")
     
     def _get_pool_abi(self) -> List:
         """Get Aave Pool contract ABI"""
@@ -66,23 +78,6 @@ class RealAaveV3Liquidator:
                     {"name": "receiveAToken", "type": "bool"}
                 ],
                 "name": "liquidationCall",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            }
-        ]
-    
-    def _get_flashloan_abi(self) -> List:
-        """Get Flash Loan contract ABI"""
-        return [
-            {
-                "inputs": [
-                    {"name": "assets", "type": "address[]"},
-                    {"name": "amounts", "type": "uint256[]"},
-                    {"name": "modes", "type": "uint256[]"},
-                    {"name": "params", "type": "bytes"}
-                ],
-                "name": "flashLoan",
                 "outputs": [],
                 "stateMutability": "nonpayable",
                 "type": "function"
@@ -105,7 +100,7 @@ class RealAaveV3Liquidator:
             debt_asset = position['debt_asset']
             debt_to_cover = position['debt_amount']
             
-            # Build flash loan params
+            # Build flash loan params for liquidation callback
             params = self._build_liquidation_params(
                 position['user'],
                 collateral_asset,
@@ -113,37 +108,47 @@ class RealAaveV3Liquidator:
                 debt_to_cover
             )
             
-            # Create transaction
-            tx_data = await self._build_liquidation_transaction(
-                collateral_asset,
-                debt_asset,
-                debt_to_cover,
-                params
+            # Create flash loan request with automatic provider selection
+            flash_loan_request = FlashLoanRequest(
+                token=debt_asset,
+                amount=debt_to_cover,
+                callback_data=params,
+                max_fee_percentage=Decimal('0.01')  # Max 1% fee
             )
             
-            # Sign and send transaction
-            tx_hash = await self._send_signed_transaction(tx_data)
+            # Execute flash loan with best provider (Curve/Aave/Balancer)
+            self.logger.info(f"Requesting flash loan: {debt_to_cover} {debt_asset}")
+            flash_result = await self.flash_loan_manager.execute_flash_loan(flash_loan_request)
             
-            # Wait for confirmation
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-            
-            if receipt['status'] == 1:
-                self.logger.info(f"✅ LIQUIDATION SUCCESS: {tx_hash.hex()}")
-                
-                # Calculate actual profit
-                profit = await self._calculate_liquidation_profit(receipt, position)
-                
+            if not flash_result.success:
+                self.logger.error(f"❌ Flash loan failed: {flash_result.error_message}")
                 return {
-                    'status': 'success',
-                    'tx_hash': tx_hash.hex(),
-                    'profit': float(profit),
-                    'position_user': position['user'],
-                    'collateral': float(position['collateral_amount']),
-                    'timestamp': datetime.now().isoformat()
+                    'status': 'flash_loan_failed',
+                    'error': flash_result.error_message,
+                    'provider_attempted': flash_result.provider.value
                 }
-            else:
-                self.logger.error(f"❌ LIQUIDATION FAILED: {tx_hash.hex()}")
-                return {'status': 'failed', 'tx_hash': tx_hash.hex()}
+            
+            self.logger.info(f"✅ Flash loan executed via {flash_result.provider.value}")
+            self.logger.info(f"   Fee paid: {flash_result.fee_paid}, Gas used: {flash_result.gas_used}")
+            
+            # Calculate actual profit (liquidation bonus minus flash loan fee and gas)
+            profit = await self._calculate_liquidation_profit(
+                position, 
+                flash_result.fee_paid,
+                flash_result.gas_used
+            )
+            
+            return {
+                'status': 'success',
+                'tx_hash': flash_result.tx_hash,
+                'profit': float(profit),
+                'position_user': position['user'],
+                'collateral': float(position['collateral_amount']),
+                'flash_loan_provider': flash_result.provider.value,
+                'flash_loan_fee': float(flash_result.fee_paid),
+                'gas_used': flash_result.gas_used,
+                'timestamp': datetime.now().isoformat()
+            }
         
         except Exception as e:
             self.logger.error(f"❌ Liquidation execution error: {e}")
@@ -213,15 +218,22 @@ class RealAaveV3Liquidator:
         tx_hash = self.web3.eth.send_raw_transaction(signed.rawTransaction)
         return tx_hash
     
-    async def _calculate_liquidation_profit(self, receipt: Dict, position: Dict) -> Decimal:
-        """Calculate actual profit from liquidation"""
-        # Gas cost
-        gas_cost = Decimal(receipt['gasUsed']) * Decimal(receipt['effectiveGasPrice']) / Decimal(1e18)
+    async def _calculate_liquidation_profit(
+        self, 
+        position: Dict, 
+        flash_loan_fee: Decimal,
+        gas_used: int
+    ) -> Decimal:
+        """Calculate actual profit from liquidation including flash loan fees"""
+        # Gas cost (approximate gas price)
+        gas_price = self.web3.eth.gas_price
+        gas_cost = Decimal(gas_used) * Decimal(gas_price) / Decimal(1e18)
         
         # Liquidation bonus (typically 5-10%)
         bonus = position['collateral_amount'] * Decimal('0.05')
         
-        profit = bonus - gas_cost
+        # Profit = liquidation bonus - flash loan fee - gas cost
+        profit = bonus - flash_loan_fee - gas_cost
         return max(profit, Decimal('0'))
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -885,10 +897,16 @@ class CompleteProductionSystem:
         self.web3_ethereum.middleware_onion.inject(geth_poa_middleware, layer=0)
         
         # Initialize all components
+        flashloan_config = {
+            'aave_v3_pool': config.get('aave_v3_pool', '0x794a61458ed90aBD2294AB7e655BC0fD30c4d2c'),
+            'curve_pool': config.get('curve_pool'),
+            'balancer_v3_vault': config.get('balancer_v3_vault', '0xBA12222222228d8Ba445958a75a0704d566BF2C8')
+        }
+        
         self.liquidator = RealAaveV3Liquidator(
             self.web3_polygon,
             config['private_key'],
-            config['flashloan_contract']
+            flashloan_config
         )
         
         self.bridge_executor = CrossChainBridgeExecutor(
@@ -1120,7 +1138,10 @@ async def main():
         'polygon_rpc': os.getenv('POLYGON_RPC', 'https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY'),
         'ethereum_rpc': os.getenv('ETHEREUM_RPC', 'https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY'),
         'private_key': os.getenv('PRIVATE_KEY', '0x...'),
-        'flashloan_contract': os.getenv('FLASHLOAN_CONTRACT', '0xa2bf1df79969965ac3ce9221a66d46c214a992edf41f6919497719824a212a6b'),
+        # Flash loan provider addresses
+        'aave_v3_pool': os.getenv('AAVE_V3_POOL', '0x794a61458ed90aBD2294AB7e655BC0fD30c4d2c'),
+        'curve_pool': os.getenv('CURVE_POOL'),  # Optional
+        'balancer_v3_vault': os.getenv('BALANCER_V3_VAULT', '0xBA12222222228d8Ba445958a75a0704d566BF2C8'),
         'telegram_token': os.getenv('TELEGRAM_TOKEN', '7723139008:AAGTCWvTbFoCxefmiEi...'),
         'telegram_chat_id': os.getenv('TELEGRAM_CHAT_ID', '7998300080'),
         'polygonscan_key': os.getenv('POLYGONSCAN_API_KEY', '7YGCQ5R2HYQWNM7Y21TA9D9DB62594RHQA')
@@ -1129,11 +1150,13 @@ async def main():
     print("""
     
     🚀 ════════════════════════════════════════════════════════════════════════════════
-    🚀 COMPLETE PRODUCTION SYSTEM - ALL 6 OPTIMIZATIONS LIVE
+    🚀 COMPLETE PRODUCTION SYSTEM - ALL 6 OPTIMIZATIONS + MULTI-PROVIDER FLASH LOANS
     🚀 ════════════════════════════════════════════════════════════════════════════════
     
     ✅ STEP 1: Real Aave V3 Liquidation Executor
        └─ Direct smart contract calls, real liquidations
+       └─ Multi-provider flash loans (Curve/Aave/Balancer)
+       └─ Dynamic provider selection by fee & liquidity
     
     ✅ STEP 2: Cross-Chain Bridge Executor
        └─ Polygon ↔ Ethereum ↔ Arbitrum ↔ Optimism ↔ BSC
@@ -1149,6 +1172,12 @@ async def main():
     
     ✅ STEP 6: Telegram Bot Commands
        └─ /liquidations, /crosschain, /dashboard, /signals, /status, /metrics
+    
+    💡 FLASH LOAN PROVIDERS:
+       └─ Curve Pool (0.04% fee) - Lowest cost
+       └─ Aave V3 Pool (0.09% fee) - High liquidity
+       └─ Balancer Vault v3 (0% fee) - Zero cost
+       └─ Supports simultaneous loans (1 per provider)
     
     ════════════════════════════════════════════════════════════════════════════════
     
