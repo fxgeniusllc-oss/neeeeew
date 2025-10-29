@@ -898,7 +898,7 @@ class CompleteProductionSystem:
         
         # Initialize all components
         flashloan_config = {
-            'aave_v3_pool': config.get('aave_v3_pool', '0x794a61458ed90aBD2294AB7e655BC0fD30c4d2c'),
+            'aave_v3_pool': config.get('aave_v3_pool', '0x794a61458eD90ABD2294aB7e655BC0fD30C4D0c8'),
             'curve_pool': config.get('curve_pool'),
             'balancer_v3_vault': config.get('balancer_v3_vault', '0xBA12222222228d8Ba445958a75a0704d566BF2C8')
         }
@@ -1139,7 +1139,7 @@ async def main():
         'ethereum_rpc': os.getenv('ETHEREUM_RPC', 'https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY'),
         'private_key': os.getenv('PRIVATE_KEY', '0x...'),
         # Flash loan provider addresses
-        'aave_v3_pool': os.getenv('AAVE_V3_POOL', '0x794a61458ed90aBD2294AB7e655BC0fD30c4d2c'),
+        'aave_v3_pool': os.getenv('AAVE_V3_POOL', '0x794a61458eD90ABD2294aB7e655BC0fD30C4D0c8'),
         'curve_pool': os.getenv('CURVE_POOL'),  # Optional
         'balancer_v3_vault': os.getenv('BALANCER_V3_VAULT', '0xBA12222222228d8Ba445958a75a0704d566BF2C8'),
         'telegram_token': os.getenv('TELEGRAM_TOKEN', '7723139008:AAGTCWvTbFoCxefmiEi...'),

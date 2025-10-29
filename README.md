@@ -601,7 +601,7 @@ BSC_RPC=https://bsc-dataseed1.binance.org/
 PRIVATE_KEY=0xYOUR_PRIVATE_KEY
 
 # Flash Loan Provider Contracts
-AAVE_V3_POOL=0x794a61458ed90aBD2294AB7e655BC0fD30c4d2c
+AAVE_V3_POOL=0x794a61458eD90ABD2294aB7e655BC0fD30C4D0c8
 CURVE_POOL=0xYOUR_CURVE_POOL_ADDRESS  # Optional
 BALANCER_V3_VAULT=0xBA12222222228d8Ba445958a75a0704d566BF2C8
 
@@ -664,7 +664,7 @@ Configure flash loan providers for optimal execution:
 # Flash Loan Provider Configuration
 flashloan_config = {
     # Aave V3 Pool (Polygon Mainnet)
-    'aave_v3_pool': '0x794a61458ed90aBD2294AB7e655BC0fD30c4d2c',
+    'aave_v3_pool': '0x794a61458eD90ABD2294aB7e655BC0fD30C4D0c8',
     
     # Curve Pool (optional - configure for specific Curve pools)
     'curve_pool': '0xYOUR_CURVE_POOL_ADDRESS',
