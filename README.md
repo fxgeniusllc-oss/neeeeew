@@ -1001,16 +1001,15 @@ Execute a trading strategy
 ### Risk Controls
 
 #### Position Limits
-- Maximum position size: $1,000,000
-- Maximum total exposure: $5,000,000
-- Maximum leverage: 5x
-- Minimum liquidity: $10,000,000
+- **Maximum Flash-LOAN size**: 20% OF FLASHLOAN PROVIDING POOL
+- **Maximum total exposure**: $15,000,000 USDC EQUIVALENT
+- **Maximum leverage**: 5x
+- **Minimum POOL_TOTAL_VALUE liquidity**: $10,000,000 USDC EQUIVALENTS
 
 #### Loss Prevention
-- Daily loss limit: $100,000
-- Strategy loss limit: $50,000
-- Consecutive loss limit: 5 trades
-- Drawdown limit: 15%
+- **Daily loss limit**: N/A = INSTANT REVERT IF PROFIT < $0.000005 USDC
+- **Strategy loss limit**: INSTANT REVERT IF PROFIT < $0.000005 USDC
+- **Consecutive REVERT limit**: 5 trades
 
 #### Pre-Trade Checks
 - ✅ Wallet balance verification
